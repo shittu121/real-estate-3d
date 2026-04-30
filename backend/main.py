@@ -35,6 +35,7 @@ from PIL import Image
 
 from backend.pipeline import depth as depth_mod
 from backend.pipeline import dof as dof_mod
+from backend.pipeline import grade as grade_mod
 from backend.pipeline import inpaint as inpaint_mod
 from backend.pipeline import kenburns as kenburns_mod
 from backend.pipeline import video as video_mod
@@ -109,33 +110,34 @@ def _process_one(
     """Run the full animation pipeline for a single image."""
     if mode == "kenburns":
         progress_fn(0.20, "Generating Ken Burns animation…")
-        return kenburns_mod.generate_frames(
+        frames = kenburns_mod.generate_frames(
             image=image_bgr,
             num_frames=num_frames,
-            zoom_start=1.0,
-            zoom_end=1.30,
             pan_direction=pan_direction,
             output_resolution=out_res,
         )
+    else:
+        # ── 3D Parallax pipeline ──────────────────────────────────────────────
+        progress_fn(0.10, "Estimating scene depth…")
+        depth_map = depth_mod.estimate_depth(pil_image)
 
-    # ── 3D Parallax pipeline ──────────────────────────────────────────────────
-    progress_fn(0.10, "Estimating scene depth…")
-    depth_map = depth_mod.estimate_depth(pil_image)
+        progress_fn(0.40, "Computing camera movement…")
+        frames_raw, masks = warp_mod.generate_frames(
+            image=image_bgr,
+            depth_map=depth_map,
+            camera_mode=camera_mode,
+            num_frames=num_frames,
+            output_resolution=out_res,
+        )
 
-    progress_fn(0.40, "Computing camera movement…")
-    frames_raw, masks = warp_mod.generate_frames(
-        image=image_bgr,
-        depth_map=depth_map,
-        camera_mode=camera_mode,
-        num_frames=num_frames,
-        output_resolution=out_res,
-    )
+        progress_fn(0.70, "Filling parallax holes…")
+        frames = [inpaint_mod.inpaint_frame(f, m) for f, m in zip(frames_raw, masks)]
 
-    progress_fn(0.70, "Filling parallax holes…")
-    frames = [inpaint_mod.inpaint_frame(f, m) for f, m in zip(frames_raw, masks)]
+        progress_fn(0.82, "Applying depth of field…")
+        frames = [dof_mod.apply_dof(f, depth_map) for f in frames]
 
-    progress_fn(0.82, "Applying depth of field…")
-    frames = [dof_mod.apply_dof(f, depth_map) for f in frames]
+    progress_fn(0.90, "Colour grading…")
+    frames = [grade_mod.apply_grade(f) for f in frames]
 
     return frames
 

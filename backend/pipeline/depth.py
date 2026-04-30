@@ -79,26 +79,28 @@ def estimate_depth(image: Image.Image, max_side: int = _MAX_SIDE) -> np.ndarray:
     depth_tensor = result["predicted_depth"]
     depth_np = depth_tensor.squeeze().cpu().numpy().astype(np.float32)
 
-    # Upscale to original image dimensions (H × W)
+    # Upscale to original image dimensions using LANCZOS for sharper edges
     if scale < 1.0:
         depth_pil = Image.fromarray(depth_np)
-        depth_pil = depth_pil.resize((orig_w, orig_h), Image.BILINEAR)
+        depth_pil = depth_pil.resize((orig_w, orig_h), Image.LANCZOS)
         depth_np = np.array(depth_pil, dtype=np.float32)
 
-    # Normalize to [0, 1].
-    # Depth Anything V2 outputs metric-style depth: higher value = farther away.
-    # That matches our convention directly (no inversion needed).
-    # If the parallax effect appears inverted on your footage, set INVERT_DEPTH=1
-    # in the environment and the line below will flip the map.
     import os
     if os.getenv("INVERT_DEPTH", "0") == "1":
-        depth_np = depth_np.max() - depth_np  # flip near/far
+        depth_np = depth_np.max() - depth_np
 
     d_min, d_max = float(depth_np.min()), float(depth_np.max())
     if d_max - d_min > 1e-6:
         depth_normalized = (depth_np - d_min) / (d_max - d_min)
     else:
         depth_normalized = np.zeros_like(depth_np)
+
+    # Bilateral filter: sharpens depth edges at object boundaries while keeping
+    # smooth regions smooth — prevents parallax from bleeding across surfaces.
+    import cv2
+    depth_u8 = (depth_normalized * 255).astype(np.uint8)
+    depth_u8 = cv2.bilateralFilter(depth_u8, d=9, sigmaColor=80, sigmaSpace=80)
+    depth_normalized = depth_u8.astype(np.float32) / 255.0
 
     logger.debug(
         "Depth map: shape=%s  min=%.3f  max=%.3f",

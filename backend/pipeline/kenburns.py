@@ -18,15 +18,15 @@ PAN_DIRECTIONS: Tuple[str, ...] = ("left", "right", "up", "down", "center")
 
 
 def _ease(t: float) -> float:
-    """Quadratic ease-out: motion starts immediately and decelerates to rest."""
-    return 1.0 - (1.0 - t) ** 2
+    """Cubic ease-in-out: slow start, smooth peak, slow end — cinematic feel."""
+    return t * t * (3.0 - 2.0 * t)
 
 
 def generate_frames(
     image: np.ndarray,
     num_frames: int,
-    zoom_start: float = 1.0,
-    zoom_end: float = 1.30,
+    zoom_start: float = 1.02,
+    zoom_end: float = 1.45,
     pan_direction: str = "right",
     output_resolution: Tuple[int, int] = (1920, 1080),  # (width, height)
 ) -> List[np.ndarray]:
@@ -55,7 +55,7 @@ def generate_frames(
     cx, cy = w * 0.5, h * 0.5
 
     # Maximum pan offset (fraction of image dimension)
-    PAN_FRACTION = 0.08
+    PAN_FRACTION = 0.12
 
     frames: List[np.ndarray] = []
 

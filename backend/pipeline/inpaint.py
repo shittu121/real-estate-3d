@@ -20,8 +20,11 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# TELEA search radius in pixels.  Larger = smoother fill but slower.
-_INPAINT_RADIUS = 5
+_INPAINT_RADIUS = 8
+
+# Skip inpainting if fewer than this fraction of pixels are holes.
+# With REFLECT_101 borders + over-crop, genuine holes are rare.
+_MIN_HOLE_FRACTION = 0.001
 
 
 def inpaint_frame(frame: np.ndarray, mask: np.ndarray) -> np.ndarray:
@@ -29,29 +32,28 @@ def inpaint_frame(frame: np.ndarray, mask: np.ndarray) -> np.ndarray:
     Fill hole regions in *frame* using the TELEA fast-marching algorithm.
 
     Args:
-        frame: BGR uint8 numpy array with hole pixels set to (0, 0, 0).
+        frame: BGR uint8 numpy array.
         mask:  uint8 array same H×W.  255 = hole, 0 = valid pixel.
 
     Returns:
         BGR uint8 array with holes filled in.
     """
     if mask is None or int(mask.max()) == 0:
-        return frame   # Nothing to do
+        return frame
 
     if frame.dtype != np.uint8:
         frame = np.clip(frame, 0, 255).astype(np.uint8)
-
     if mask.dtype != np.uint8:
         mask = mask.astype(np.uint8)
 
-    # Dilate the mask by 1-2 px to catch sub-pixel edge artifacts from remap
+    hole_fraction = np.count_nonzero(mask) / mask.size
+    if hole_fraction < _MIN_HOLE_FRACTION:
+        return frame  # negligible — skip for speed
+
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     mask_dilated = cv2.dilate(mask, kernel, iterations=1)
 
     result = cv2.inpaint(frame, mask_dilated, _INPAINT_RADIUS, cv2.INPAINT_TELEA)
 
-    logger.debug(
-        "Inpainted %.1f%% of frame pixels.",
-        100.0 * np.count_nonzero(mask_dilated) / mask_dilated.size,
-    )
+    logger.debug("Inpainted %.2f%% of frame pixels.", hole_fraction * 100)
     return result
