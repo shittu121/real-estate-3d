@@ -155,6 +155,10 @@ def _run_job(job_id: str, job_dir: Path, params: Dict[str, Any]) -> None:
 
         out_res     = RESOLUTIONS.get(resolution, RESOLUTIONS["1080p"])
         num_frames  = FPS * duration
+        # Extra frames added to every clip except the last so the xfade
+        # crossfade consumes the padding rather than eating into the user's
+        # requested duration.  Total video = image_count × duration exactly.
+        crossfade_pad = int(FPS * CROSSFADE_S)
         output_path = job_dir / "output.mp4"
         clip_paths: List[Path] = []
 
@@ -171,9 +175,12 @@ def _run_job(job_id: str, job_dir: Path, params: Dict[str, Any]) -> None:
             prog(0.02, "Loading image…")
             pil_image, image_bgr = _load_image(job_dir / f"input_{idx}.jpg")
 
+            is_last = (idx == image_count - 1)
+            nf = num_frames if (image_count == 1 or is_last) else num_frames + crossfade_pad
+
             frames = _process_one(
                 pil_image, image_bgr, mode, camera_mode, pan_direction,
-                num_frames, out_res, prog,
+                nf, out_res, prog,
             )
 
             clip_path = job_dir / f"clip_{idx}.mp4"

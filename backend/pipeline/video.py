@@ -135,9 +135,10 @@ def concat_videos(
         cmd += ["-i", str(p)]
 
     # Build xfade filter chain.
-    # offset[i] = i * (clip_duration - crossfade_duration)
-    # so each subsequent crossfade starts exactly at the end of the previous combined segment.
-    step = clip_duration_secs - crossfade_secs
+    # Clips 0..N-2 were generated with (clip_duration + crossfade) frames so the
+    # xfade consumes the padding, not the user's requested content.  The visible
+    # non-overlapping stride per clip is therefore exactly clip_duration_secs.
+    step = clip_duration_secs
     parts = []
     prev = "[0:v]"
     for i in range(1, n):
