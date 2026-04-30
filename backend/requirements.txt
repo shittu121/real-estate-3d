@@ -1,0 +1,15 @@
+# Core API
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.9
+
+# Deep learning
+torch>=2.1.0
+torchvision>=0.16.0
+transformers>=4.36.0
+accelerate>=0.25.0
+
+# Image processing
+Pillow>=10.1.0
+numpy>=1.26.0
+opencv-python-headless>=4.8.1
