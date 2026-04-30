@@ -79,10 +79,16 @@ def _write_status(
     progress: int = 0,
     message: str = "",
 ) -> None:
-    payload = {"status": status, "progress": progress, "message": message}
-    tmp = job_dir / "status.tmp"
-    tmp.write_text(json.dumps(payload))
-    tmp.replace(job_dir / "status.json")
+    payload = json.dumps({"status": status, "progress": progress, "message": message})
+    status_file = job_dir / "status.json"
+    # Windows holds a file lock while it is open, so os.replace() raises
+    # PermissionError when the poller reads status.json concurrently.
+    # Writing directly is safe here — the payload is small enough that a
+    # partial read by the poller will simply be retried on the next poll tick.
+    try:
+        status_file.write_text(payload)
+    except PermissionError:
+        pass   # poller has the file open; it will get the update next tick
 
 
 def _load_image(path: Path) -> tuple:

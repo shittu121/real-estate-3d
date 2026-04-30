@@ -75,6 +75,21 @@ def _ease(t: float) -> float:
     return t * t * (3.0 - 2.0 * t)
 
 
+# Secondary camera sway — uniform drift layered on top of the primary move.
+# Gives the "operator on a slow dolly track" feeling.
+_SWAY_AMP_X  = 0.010   # ±1.0 % of width  (horizontal)
+_SWAY_AMP_Y  = 0.004   # ±0.4 % of height (vertical — subtler)
+_SWAY_CYCLES = 0.60    # completes ~0.6 of a full sine over the clip
+
+
+def _sway(t_raw: float, w: int, h: int) -> Tuple[float, float]:
+    """Return (dx, dy) pixel offset for the camera sway at raw frame progress."""
+    angle = 2.0 * np.pi * _SWAY_CYCLES * t_raw
+    dx = _SWAY_AMP_X * w * np.sin(angle)
+    dy = _SWAY_AMP_Y * h * np.sin(angle * 0.55)   # slightly different freq
+    return dx, dy
+
+
 def generate_frames(
     image: np.ndarray,
     depth_map: np.ndarray,
@@ -119,16 +134,16 @@ def generate_frames(
     p = _PARAMS[camera_mode]
 
     for i in range(num_frames):
-        t = _ease(i / max(num_frames - 1, 1))
+        t_raw = i / max(num_frames - 1, 1)
+        t = _ease(t_raw)
+        sway_x, sway_y = _sway(t_raw, w, h)
 
         # ── Build displacement maps ────────────────────────────────────────────
         if camera_mode == "dolly_in":
-            # base_scale applies to ALL pixels → consistent zoom for all depths
-            # parallax_zoom adds extra zoom to foreground only → depth cue
             base_scale = 1.0 + p["base_zoom"] * t
             scale = base_scale + p["parallax_zoom"] * t * prox
-            map_x = cx + (x_grid - cx) / scale
-            map_y = cy + (y_grid - cy) / scale
+            map_x = cx + (x_grid - cx) / scale + sway_x
+            map_y = cy + (y_grid - cy) / scale + sway_y
 
         elif camera_mode == "pan_right":
             base_shift   = w * p["base_shift"]   * t
@@ -136,8 +151,8 @@ def generate_frames(
             total_shift  = base_shift + para_shift
             base_scale   = 1.0 + p["base_zoom"] * t
             scale        = base_scale + p["parallax_zoom"] * t * prox
-            map_x = cx + (x_grid - cx) / scale + total_shift
-            map_y = cy + (y_grid - cy) / scale
+            map_x = cx + (x_grid - cx) / scale + total_shift + sway_x
+            map_y = cy + (y_grid - cy) / scale + sway_y
 
         elif camera_mode == "pan_left":
             base_shift   = w * p["base_shift"]   * t
@@ -145,8 +160,8 @@ def generate_frames(
             total_shift  = base_shift + para_shift
             base_scale   = 1.0 + p["base_zoom"] * t
             scale        = base_scale + p["parallax_zoom"] * t * prox
-            map_x = cx + (x_grid - cx) / scale - total_shift
-            map_y = cy + (y_grid - cy) / scale
+            map_x = cx + (x_grid - cx) / scale - total_shift + sway_x
+            map_y = cy + (y_grid - cy) / scale + sway_y
 
         elif camera_mode == "orbit_right":
             base_shift   = w * p["base_shift"]   * t
@@ -154,8 +169,8 @@ def generate_frames(
             total_shift  = base_shift + para_shift
             base_scale   = 1.0 + p["base_zoom"] * t
             scale        = base_scale + p["parallax_zoom"] * t * prox
-            map_x = cx + (x_grid - cx) / scale + total_shift
-            map_y = cy + (y_grid - cy) / scale
+            map_x = cx + (x_grid - cx) / scale + total_shift + sway_x
+            map_y = cy + (y_grid - cy) / scale + sway_y
 
         elif camera_mode == "crane_up":
             base_shift   = h * p["base_shift"]   * t
@@ -163,17 +178,16 @@ def generate_frames(
             total_shift  = base_shift + para_shift
             base_scale   = 1.0 + p["base_zoom"] * t
             scale        = base_scale + p["parallax_zoom"] * t * prox
-            map_x = cx + (x_grid - cx) / scale
-            map_y = cy + (y_grid - cy) / scale + total_shift
+            map_x = cx + (x_grid - cx) / scale + sway_x
+            map_y = cy + (y_grid - cy) / scale + total_shift + sway_y
 
         # ── Remap ─────────────────────────────────────────────────────────────
-        # INTER_LINEAR for remap: clean, no ringing artifacts at depth edges.
-        # INTER_LANCZOS4 reserved for the final output resize (simple scale-down).
-        # REFLECT_101 fills any border excursions with mirrored content.
+        # cv2.remap requires float32 maps exactly — cast in case any scalar
+        # arithmetic (sway offsets etc.) promoted the arrays to float64.
         frame = cv2.remap(
             image,
-            map_x,
-            map_y,
+            map_x.astype(np.float32),
+            map_y.astype(np.float32),
             interpolation=cv2.INTER_LINEAR,
             borderMode=cv2.BORDER_REFLECT_101,
         )
