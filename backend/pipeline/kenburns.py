@@ -26,7 +26,7 @@ def generate_frames(
     image: np.ndarray,
     num_frames: int,
     zoom_start: float = 1.02,
-    zoom_end: float = 1.45,
+    zoom_end: float = 1.60,
     pan_direction: str = "right",
     output_resolution: Tuple[int, int] = (1920, 1080),  # (width, height)
 ) -> List[np.ndarray]:
@@ -55,7 +55,7 @@ def generate_frames(
     cx, cy = w * 0.5, h * 0.5
 
     # Maximum pan offset (fraction of image dimension)
-    PAN_FRACTION = 0.12
+    PAN_FRACTION = 0.18
 
     frames: List[np.ndarray] = []
 

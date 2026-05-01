@@ -40,32 +40,32 @@ CAMERA_MODES: Tuple[str, ...] = (
 # Keep parallax values small — revealing hidden space looks bad on a 2D photo.
 _PARAMS = {
     "dolly_in": {
-        "base_zoom":      0.18,   # all layers zoom to this fraction at t=1
-        "parallax_zoom":  0.07,   # foreground zooms this extra amount
+        "base_zoom":      0.30,   # strong forward push — clearly visible zoom
+        "parallax_zoom":  0.14,   # foreground pushes extra — real depth cue
     },
     "pan_right": {
-        "base_shift":     0.04,   # fraction of width, shared by all depths
-        "parallax_shift": 0.05,   # foreground shifts this extra amount
-        "base_zoom":      0.06,
-        "parallax_zoom":  0.03,
+        "base_shift":     0.10,   # wide lateral sweep
+        "parallax_shift": 0.10,   # foreground leads the pan
+        "base_zoom":      0.12,
+        "parallax_zoom":  0.06,
     },
     "pan_left": {
-        "base_shift":     0.04,
-        "parallax_shift": 0.05,
-        "base_zoom":      0.06,
-        "parallax_zoom":  0.03,
+        "base_shift":     0.10,
+        "parallax_shift": 0.10,
+        "base_zoom":      0.12,
+        "parallax_zoom":  0.06,
     },
     "orbit_right": {
-        "base_shift":     0.03,
-        "parallax_shift": 0.04,
-        "base_zoom":      0.08,
-        "parallax_zoom":  0.04,
+        "base_shift":     0.08,
+        "parallax_shift": 0.09,
+        "base_zoom":      0.16,
+        "parallax_zoom":  0.08,
     },
     "crane_up": {
-        "base_shift":     0.03,   # fraction of height
-        "parallax_shift": 0.04,
-        "base_zoom":      0.06,
-        "parallax_zoom":  0.03,
+        "base_shift":     0.09,   # noticeable vertical lift
+        "parallax_shift": 0.09,
+        "base_zoom":      0.12,
+        "parallax_zoom":  0.06,
     },
 }
 
@@ -77,9 +77,9 @@ def _ease(t: float) -> float:
 
 # Secondary camera sway — uniform drift layered on top of the primary move.
 # Gives the "operator on a slow dolly track" feeling.
-_SWAY_AMP_X  = 0.010   # ±1.0 % of width  (horizontal)
-_SWAY_AMP_Y  = 0.004   # ±0.4 % of height (vertical — subtler)
-_SWAY_CYCLES = 0.60    # completes ~0.6 of a full sine over the clip
+_SWAY_AMP_X  = 0.022   # ±2.2 % of width  — visible left/right camera float
+_SWAY_AMP_Y  = 0.009   # ±0.9 % of height — subtle breathing
+_SWAY_CYCLES = 0.75    # ~¾ of a left→right→left cycle over the clip
 
 
 def _sway(t_raw: float, w: int, h: int) -> Tuple[float, float]:
