@@ -39,33 +39,37 @@ CAMERA_MODES: Tuple[str, ...] = (
 # and a PARALLAX component (foreground moves this much MORE than background).
 # Keep parallax values small — revealing hidden space looks bad on a 2D photo.
 _PARAMS = {
+    # dolly_in: pure forward push — camera moves through space.
+    # base_zoom drives the zoom everyone sees. parallax_zoom is the TINY
+    # extra amount foreground moves over background — keep it small or the
+    # image morphs like rubber (AI vibe). Real dolly depth separation is subtle.
     "dolly_in": {
-        "base_zoom":      0.30,   # strong forward push — clearly visible zoom
-        "parallax_zoom":  0.14,   # foreground pushes extra — real depth cue
+        "base_zoom":      0.22,
+        "parallax_zoom":  0.04,
     },
     "pan_right": {
-        "base_shift":     0.10,   # wide lateral sweep
-        "parallax_shift": 0.10,   # foreground leads the pan
-        "base_zoom":      0.12,
-        "parallax_zoom":  0.06,
+        "base_shift":     0.10,
+        "parallax_shift": 0.06,
+        "base_zoom":      0.10,
+        "parallax_zoom":  0.03,
     },
     "pan_left": {
         "base_shift":     0.10,
-        "parallax_shift": 0.10,
-        "base_zoom":      0.12,
-        "parallax_zoom":  0.06,
+        "parallax_shift": 0.06,
+        "base_zoom":      0.10,
+        "parallax_zoom":  0.03,
     },
     "orbit_right": {
         "base_shift":     0.08,
-        "parallax_shift": 0.09,
-        "base_zoom":      0.16,
-        "parallax_zoom":  0.08,
+        "parallax_shift": 0.05,
+        "base_zoom":      0.14,
+        "parallax_zoom":  0.04,
     },
     "crane_up": {
-        "base_shift":     0.09,   # noticeable vertical lift
-        "parallax_shift": 0.09,
-        "base_zoom":      0.12,
-        "parallax_zoom":  0.06,
+        "base_shift":     0.09,
+        "parallax_shift": 0.05,
+        "base_zoom":      0.10,
+        "parallax_zoom":  0.03,
     },
 }
 
