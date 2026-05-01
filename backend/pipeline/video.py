@@ -15,12 +15,19 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# Encode settings used by both write_video and concat_videos.
+_CRF    = 14          # 14 ≈ near-lossless for photorealistic content (18 is "visually lossless" but too lossy for fine texture)
+_PRESET = "slow"      # slow = best compression efficiency at given CRF; file is bigger but noticeably sharper than "fast"
+# Unsharp mask: luma 5×5 matrix, strength 0.6 — counteracts pipeline softness
+# (warp interpolation, TELEA inpainting).  Chroma strength 0 to avoid colour noise.
+_USM    = "unsharp=lx=5:ly=5:la=0.6:cx=3:cy=3:ca=0.0"
+
 
 def write_video(
     frames: List[np.ndarray],
     output_path: Union[str, Path],
     fps: int = 30,
-    crf: int = 18,
+    crf: int = _CRF,
 ) -> Path:
     """
     Write a list of BGR uint8 frames to an H.264 MP4 file.
@@ -29,7 +36,7 @@ def write_video(
         frames:      Non-empty list of BGR uint8 numpy arrays (all same size).
         output_path: Destination .mp4 path.
         fps:         Frames per second.
-        crf:         H.264 quality (0 = lossless, 51 = worst; 18 ≈ visually lossless).
+        crf:         H.264 quality (0 = lossless, 51 = worst; 14 ≈ near-lossless).
 
     Returns:
         Path to the written file.
@@ -53,11 +60,12 @@ def write_video(
         "-r", str(fps),
         "-i", "pipe:0",
         # ── Output: H.264 MP4 ─────────────────────────────────────────────
+        "-vf", _USM,                   # unsharp mask to restore pipeline softness
         "-vcodec", "libx264",
-        "-pix_fmt", "yuv420p",     # required for browser / QuickTime compat
+        "-pix_fmt", "yuv420p",         # required for browser / QuickTime compat
         "-crf", str(crf),
-        "-preset", "fast",
-        "-movflags", "+faststart",  # put moov atom at front for streaming
+        "-preset", _PRESET,
+        "-movflags", "+faststart",     # put moov atom at front for streaming
         str(output_path),
     ]
 
@@ -79,7 +87,7 @@ def write_video(
                 frame = np.clip(frame, 0, 255).astype(np.uint8)
             if frame.shape[:2] != (h, w):
                 import cv2
-                frame = cv2.resize(frame, (w, h))
+                frame = cv2.resize(frame, (w, h), interpolation=cv2.INTER_LANCZOS4)
             proc.stdin.write(frame.tobytes())
 
         proc.stdin.close()
@@ -118,7 +126,8 @@ def concat_videos(
         output_path:         Destination .mp4 path.
         fps:                 Frame rate (for logging).
         crossfade_secs:      Duration of the crossfade between each pair of clips.
-        clip_duration_secs:  Duration of each individual clip in seconds.
+        clip_duration_secs:  Duration of each individual clip in seconds (user-requested,
+                             NOT the padded duration written to disk).
 
     Returns:
         Path to the written file.
@@ -142,7 +151,8 @@ def concat_videos(
     parts = []
     prev = "[0:v]"
     for i in range(1, n):
-        tag = "[vout]" if i == n - 1 else f"[v{i}]"
+        # Route the last xfade to [vpre] then we apply USM → [vout]
+        tag = "[vpre]" if i == n - 1 else f"[v{i}]"
         offset = i * step
         parts.append(
             f"{prev}[{i}:v]xfade=transition=fade"
@@ -151,13 +161,16 @@ def concat_videos(
         )
         prev = tag
 
+    # Chain unsharp mask onto the final merged stream
+    parts.append(f"[vpre]{_USM}[vout]")
+
     cmd += [
         "-filter_complex", ";".join(parts),
         "-map", "[vout]",
         "-vcodec", "libx264",
         "-pix_fmt", "yuv420p",
-        "-crf", "18",
-        "-preset", "fast",
+        "-crf", str(_CRF),
+        "-preset", _PRESET,
         "-movflags", "+faststart",
         str(output_path),
     ]
